@@ -50,6 +50,7 @@ python mini_ctf.py
 python mini_ctf.py --quick --no-animate
 python mini_ctf.py --seed-from best_genome.npy
 python mini_ctf.py --replay best_mini_ctf.npy
+python mini_ctf.py --replay best_mini_ctf_alltime.npy
 python mini_ctf.py --replay best_mini_ctf.npy --save-replay replay.gif --no-animate
 python mini_ctf.py --replay best_mini_ctf_hof.npy --replay-index -1 --opponent best_mini_ctf_hof.npy --opponent-index 0
 ```

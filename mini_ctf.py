@@ -373,6 +373,8 @@ def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
     hof = []
     best_hist = []
     wr_hist = []
+    alltime_best = None
+    alltime_fit = -np.inf
     viewer = _LiveViewer() if watch_every > 0 else None
 
     for g in range(gens):
@@ -383,6 +385,9 @@ def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
         winrate = winrate[order]
         best_hist.append(fits[0])
         wr_hist.append(winrate[0])
+        if fits[0] > alltime_fit:
+            alltime_fit = fits[0]
+            alltime_best = genomes[0].copy()
 
         print(
             f"gen {g:3d}  best={fits[0]:7.1f}  mean={fits.mean():7.1f}  "
@@ -407,7 +412,7 @@ def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
             new_genomes.append(child)
         genomes = np.array(new_genomes)
 
-    return genomes[0], best_hist, wr_hist, hof
+    return genomes[0], best_hist, wr_hist, hof, alltime_best, alltime_fit
 
 
 class _LiveViewer:
@@ -524,7 +529,7 @@ if __name__ == "__main__":
         + (f"  resume={args.resume}" if args.resume else "")
         + (f"  seed_from={args.seed_from}" if args.seed_from else "")
     )
-    best, fits, wrs, hof = evolve(
+    best, fits, wrs, hof, alltime_best, alltime_fit = evolve(
         pop=pop,
         gens=gens,
         seed=args.seed,
@@ -533,8 +538,10 @@ if __name__ == "__main__":
         watch_every=args.watch_every,
     )
     np.save(args.out, best)
+    alltime_out = args.out.replace(".npy", "_alltime.npy")
+    np.save(alltime_out, alltime_best)
     np.save(args.out.replace(".npy", "_hof.npy"), np.array(hof))
-    print(f"Saved {args.out} and hall-of-fame.")
+    print(f"Saved {args.out}, {alltime_out} (fit={alltime_fit:.1f}), and hall-of-fame.")
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
     ax1.plot(fits)
