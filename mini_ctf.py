@@ -334,13 +334,22 @@ def widen_stage1_genome(genome):
     return widened
 
 
-def load_seed_genome(path):
+def load_seed_genome(path, index=None):
     genome = np.load(path)
+    if genome.ndim == 2 and genome.shape[1] == N_PARAMS:
+        selected = -1 if index is None else index
+        if not -len(genome) <= selected < len(genome):
+            raise IndexError(f"HoF index {selected} is outside 0..{len(genome) - 1}")
+        print(f"Loaded HoF genome {selected} from {path} ({len(genome)} entries)")
+        return genome[selected], f"mini-ctf-hof[{selected}]"
     if genome.shape == (N_PARAMS,):
         return genome, "mini-ctf"
     if genome.shape == (STAGE1_PARAMS,):
         return widen_stage1_genome(genome), "stage-1-widened"
-    raise ValueError(f"Unsupported genome shape {genome.shape}; expected {(N_PARAMS,)} or {(STAGE1_PARAMS,)}")
+    raise ValueError(
+        f"Unsupported genome shape {genome.shape}; expected {(N_PARAMS,)}, "
+        f"{(STAGE1_PARAMS,)}, or a HoF array with {N_PARAMS} columns"
+    )
 
 
 def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
@@ -491,15 +500,19 @@ if __name__ == "__main__":
     ap.add_argument("--no-animate", action="store_true")
     ap.add_argument("--replay", type=str, default=None,
                     help="load a saved genome and replay a match instead of training")
+    ap.add_argument("--replay-index", type=int, default=None,
+                    help="if --replay is a hall-of-fame array, select this entry")
     ap.add_argument("--opponent", type=str, default=None,
                     help="optional saved opponent genome for --replay")
+    ap.add_argument("--opponent-index", type=int, default=None,
+                    help="if --opponent is a hall-of-fame array, select this entry")
     ap.add_argument("--save-replay", type=str, default=None,
                     help="write a replay GIF, for example replay.gif")
     args = ap.parse_args()
 
     if args.replay:
-        gen_a, _ = load_seed_genome(args.replay)
-        gen_b, _ = load_seed_genome(args.opponent) if args.opponent else (gen_a, "self")
+        gen_a, _ = load_seed_genome(args.replay, index=args.replay_index)
+        gen_b, _ = load_seed_genome(args.opponent, index=args.opponent_index) if args.opponent else (gen_a, "self")
         animate_match(gen_a, gen_b, seed=args.seed + 999, save=args.save_replay, show=not args.no_animate)
         raise SystemExit(0)
 
