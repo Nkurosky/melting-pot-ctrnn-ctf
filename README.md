@@ -10,7 +10,8 @@ This repo currently contains two main stages:
 There is also an intermediate self-play script:
 
 - `race.py`: two agents race to a single central flag.
-- `minictf.py`: simplified symmetric mini-CTF variant using identical agents and a carry bit sensor.
+
+Older experiments live in `archive/`.
 
 ## Core Setup
 
@@ -48,14 +49,8 @@ Stage 2:
 python mini_ctf.py
 python mini_ctf.py --quick --no-animate
 python mini_ctf.py --seed-from best_genome.npy
-```
-
-Simplified mini-CTF variant:
-
-```bash
-python minictf.py
-python minictf.py --quick
-python minictf.py --seed-from best_genome.npy
+python mini_ctf.py --replay best_mini_ctf.npy
+python mini_ctf.py --replay best_mini_ctf.npy --save-replay replay.gif --no-animate
 ```
 
 Intermediate race baseline:
@@ -65,11 +60,17 @@ python race.py
 python race.py --quick
 ```
 
+## Review Guide
+
+Start with these docs before reading the scripts:
+
+- `docs/code_map.md`: a gentle map of the main files and where the important logic lives
+- `docs/melting_pot_bridge.md`: the plan for moving from toy simulation to Google's Melting Pot substrate
+
 ## Files
 
 - `toy_ctf.py`: shared CTRNN pieces plus the original solo training setup
 - `mini_ctf.py`: symmetric mini-CTF environment and co-evolution loop
-- `minictf.py`: simplified mini-CTF variant with a carry bit
 - `race.py`: single-flag competitive self-play baseline
 - `best_genome.npy`, `best_mini_ctf.npy`: saved example champions
 - `fitness.png`, `mini_ctf_fitness.png`, `demo.png`: generated artifacts

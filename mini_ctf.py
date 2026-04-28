@@ -24,6 +24,7 @@ Run:
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Circle
 
 from toy_ctf import (
@@ -426,30 +427,55 @@ class _LiveViewer:
         self.carry_a, = self.ax.plot([], [], marker="o", color="k", ms=4, ls="")
         self.carry_b, = self.ax.plot([], [], marker="o", color="k", ms=4, ls="")
 
+    def set_frame(self, frame):
+        ax_, ay_, ah_, a_carry, bx_, by_, bh_, b_carry, f0x, f0y, _, f1x, f1y, _ = frame
+        self.agent_a.center = (ax_, ay_)
+        self.agent_b.center = (bx_, by_)
+        self.flag_a.center = (f0x, f0y)
+        self.flag_b.center = (f1x, f1y)
+        self.h_a.set_data([ax_, ax_ + np.cos(ah_)], [ay_, ay_ + np.sin(ah_)])
+        self.h_b.set_data([bx_, bx_ + np.cos(bh_)], [by_, by_ + np.sin(bh_)])
+        self.carry_a.set_data([ax_], [ay_ + 0.6]) if a_carry else self.carry_a.set_data([], [])
+        self.carry_b.set_data([bx_], [by_ + 0.6]) if b_carry else self.carry_b.set_data([], [])
+        return [
+            self.agent_a,
+            self.agent_b,
+            self.flag_a,
+            self.flag_b,
+            self.h_a,
+            self.h_b,
+            self.carry_a,
+            self.carry_b,
+        ]
+
     def play(self, trail, gen, fit, winner, step=2):
         self.ax.set_title(f"gen {gen}  fit={fit:.1f}  winner={winner}")
         for frame in trail[::step]:
-            ax_, ay_, ah_, a_carry, bx_, by_, bh_, b_carry, f0x, f0y, _, f1x, f1y, _ = frame
-            self.agent_a.center = (ax_, ay_)
-            self.agent_b.center = (bx_, by_)
-            self.flag_a.center = (f0x, f0y)
-            self.flag_b.center = (f1x, f1y)
-            self.h_a.set_data([ax_, ax_ + np.cos(ah_)], [ay_, ay_ + np.sin(ah_)])
-            self.h_b.set_data([bx_, bx_ + np.cos(bh_)], [by_, by_ + np.sin(bh_)])
-            self.carry_a.set_data([ax_], [ay_ + 0.6]) if a_carry else self.carry_a.set_data([], [])
-            self.carry_b.set_data([bx_], [by_ + 0.6]) if b_carry else self.carry_b.set_data([], [])
+            self.set_frame(frame)
             self.fig.canvas.draw_idle()
             plt.pause(0.005)
 
 
-def animate_match(gen_a, gen_b, seed=42):
+def animate_match(gen_a, gen_b, seed=42, save=None, show=True):
     _, _, winner, trail = run_match(gen_a, gen_b, seed=seed, record=True)
     print(f"winner: {winner}")
     viewer = _LiveViewer()
     plt.ioff()
     viewer.ax.set_title(f"replay - winner={winner}")
-    viewer.play(trail, gen=-1, fit=0.0, winner=winner, step=2)
-    plt.show()
+    if save:
+        frames = trail[::2]
+
+        def update(i):
+            return viewer.set_frame(frames[i])
+
+        anim = FuncAnimation(viewer.fig, update, frames=len(frames), interval=40, blit=False)
+        anim.save(save, writer="pillow", fps=25)
+        print(f"Saved replay to {save}")
+    if show:
+        viewer.play(trail, gen=-1, fit=0.0, winner=winner, step=2)
+        plt.show()
+    else:
+        plt.close(viewer.fig)
 
 
 if __name__ == "__main__":
@@ -463,7 +489,19 @@ if __name__ == "__main__":
     ap.add_argument("--watch-every", type=int, default=0)
     ap.add_argument("--out", type=str, default="best_mini_ctf.npy")
     ap.add_argument("--no-animate", action="store_true")
+    ap.add_argument("--replay", type=str, default=None,
+                    help="load a saved genome and replay a match instead of training")
+    ap.add_argument("--opponent", type=str, default=None,
+                    help="optional saved opponent genome for --replay")
+    ap.add_argument("--save-replay", type=str, default=None,
+                    help="write a replay GIF, for example replay.gif")
     args = ap.parse_args()
+
+    if args.replay:
+        gen_a, _ = load_seed_genome(args.replay)
+        gen_b, _ = load_seed_genome(args.opponent) if args.opponent else (gen_a, "self")
+        animate_match(gen_a, gen_b, seed=args.seed + 999, save=args.save_replay, show=not args.no_animate)
+        raise SystemExit(0)
 
     pop = args.pop or (16 if args.quick else 40)
     gens = args.gens or (10 if args.quick else 100)
@@ -498,5 +536,11 @@ if __name__ == "__main__":
     plt.savefig("mini_ctf_fitness.png")
     print("Saved mini_ctf_fitness.png")
 
-    if not args.no_animate:
-        animate_match(best, hof[-1] if hof else best, seed=args.seed + 999)
+    if args.save_replay or not args.no_animate:
+        animate_match(
+            best,
+            hof[-1] if hof else best,
+            seed=args.seed + 999,
+            save=args.save_replay,
+            show=not args.no_animate,
+        )
