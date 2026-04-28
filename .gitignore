@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# Generated artifacts
+*.png
+*.npy
+
+# Local editor / tooling
+.DS_Store
+Thumbs.db
+.claude/
