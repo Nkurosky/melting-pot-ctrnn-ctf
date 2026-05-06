@@ -76,6 +76,8 @@ Start with these docs before reading the scripts:
 - `docs/melting_pot_bridge.md`: the plan for moving from toy simulation to Google's Melting Pot substrate
 
 The starter final-project notebook is `notebooks/final_project.ipynb`.
+The Google Colab notebook is `notebooks/google_colab_final_project.ipynb`, or open it directly:
+[Open in Colab](https://colab.research.google.com/github/Nkurosky/melting-pot-ctrnn-ctf/blob/main/notebooks/google_colab_final_project.ipynb).
 
 ## Files
 
