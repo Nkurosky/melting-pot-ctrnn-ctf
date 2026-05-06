@@ -69,6 +69,7 @@ python race.py --quick
 Start with these docs before reading the scripts:
 
 - `docs/final_project_proposal.md`: less-than-one-page project proposal
+- `docs/final_paper_draft.md`: filled paper draft with result figures
 - `docs/code_map.md`: a gentle map of the main files and where the important logic lives
 - `docs/paper_outline.md`: structure for the 1500-2000 word final paper
 - `docs/oral_exam_prep.md`: concepts and code paths to prepare for the oral exam
