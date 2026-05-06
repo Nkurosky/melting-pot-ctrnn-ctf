@@ -2,6 +2,8 @@
 
 Minimal evolutionary robotics experiments for capture-the-flag with a 3-neuron CTRNN controller.
 
+This repository is being shaped into a final project on computational models of cognition. The central question is whether a tiny recurrent neural controller can evolve useful, context-sensitive behavior in a capture-the-flag task.
+
 This repo currently contains two main stages:
 
 - `toy_ctf.py`: stage 1, a solo toy environment with one agent, one target flag, and a distractor player.
@@ -66,8 +68,13 @@ python race.py --quick
 
 Start with these docs before reading the scripts:
 
+- `docs/final_project_proposal.md`: less-than-one-page project proposal
 - `docs/code_map.md`: a gentle map of the main files and where the important logic lives
+- `docs/paper_outline.md`: structure for the 1500-2000 word final paper
+- `docs/oral_exam_prep.md`: concepts and code paths to prepare for the oral exam
 - `docs/melting_pot_bridge.md`: the plan for moving from toy simulation to Google's Melting Pot substrate
+
+The starter final-project notebook is `notebooks/final_project.ipynb`.
 
 ## Files
 
