@@ -22,6 +22,7 @@ Run:
     python mini_ctf.py --seed-from best_genome.npy
 """
 import argparse
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -37,6 +38,8 @@ from toy_ctf import (
     MAX_SPEED,
     N_NEURONS,
     N_RAYS,
+    RAY_ANGLES,
+    MAX_RANGE,
     N_SENSORS as STAGE1_SENSORS,
     BASE_PARAMS,
     sigmoid,
@@ -49,6 +52,10 @@ EP_STEPS = 500
 BASE_R = 1.2
 BASE_X_OFFSET = 2.5
 TAG_DIST = 0.9
+SPAWN_X_JITTER = 1.0
+SPAWN_Y_JITTER = 3.5
+SPAWN_HEADING_JITTER = np.pi
+ALLOW_REVERSE = True
 
 CHAN_ENEMY_FLAG = 0
 CHAN_OWN_FLAG = 1
@@ -59,14 +66,14 @@ N_SENSORS = N_RAYS * N_CHANNELS
 N_PARAMS = param_count(N_SENSORS)
 STAGE1_PARAMS = param_count(STAGE1_SENSORS)
 
-FIT_SEEK = 1.0
+FIT_SEEK = 2.0
 FIT_RETURN = 1.5
 FIT_RECOVER = 1.2
 PROGRESS_GAIN = 4.0
 STEAL_BONUS = 35.0
 SCORE_BONUS = 220.0
-TAG_BONUS = 60.0
-TAGGED_PENALTY = 55.0
+TAG_BONUS = 40.0
+TAGGED_PENALTY = 35.0
 TIMEOUT_PENALTY = 10.0
 
 TEAM_LABELS = ("A", "B")
@@ -81,9 +88,9 @@ def base_pos(team):
 
 def spawn_pose(rng, team):
     base = base_pos(team)
-    x = base[0] + (1.5 if team == 0 else -1.5) + rng.normal(0, 0.2)
-    y = np.clip(base[1] + rng.normal(0, 2.0), 3.0, ARENA - 3.0)
-    h = (0.0 if team == 0 else np.pi) + rng.normal(0, 0.45)
+    x = base[0] + (1.5 if team == 0 else -1.5) + rng.normal(0, SPAWN_X_JITTER)
+    y = np.clip(base[1] + rng.normal(0, SPAWN_Y_JITTER), 3.0, ARENA - 3.0)
+    h = (0.0 if team == 0 else np.pi) + rng.uniform(-SPAWN_HEADING_JITTER, SPAWN_HEADING_JITTER)
     return float(np.clip(x, AGENT_R, ARENA - AGENT_R)), float(y), float(h)
 
 
@@ -134,8 +141,12 @@ def step_agent(agent, obs):
     dy = (-agent["y_state"] + agent["W"] @ sig + I) / agent["taus"]
     agent["y_state"] = agent["y_state"] + DT * dy
     out = sigmoid(agent["y_state"] + agent["b"])
-    vl = (2.0 * out[1] - 1.0) * MAX_SPEED
-    vr = (2.0 * out[2] - 1.0) * MAX_SPEED
+    if ALLOW_REVERSE:
+        vl = (2.0 * out[1] - 1.0) * MAX_SPEED
+        vr = (2.0 * out[2] - 1.0) * MAX_SPEED
+    else:
+        vl = out[1] * MAX_SPEED
+        vr = out[2] * MAX_SPEED
     v = 0.5 * (vl + vr)
     w = (vr - vl) / WHEEL_BASE
     return v, w
@@ -352,8 +363,9 @@ def load_seed_genome(path, index=None):
     )
 
 
-def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
-           resume=None, seed_from=None, watch_every=0, hof_every=10, hof_cap=12):
+def evolve(pop=100, gens=150, mut=0.05, elite=2, seed=0,
+           resume=None, seed_from=None, watch_every=0, hof_every=10, hof_cap=12,
+           checkpoint_replay_dir=None):
     rng = np.random.default_rng(seed)
     if resume:
         g0, mode = load_seed_genome(resume)
@@ -376,6 +388,9 @@ def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
     alltime_best = None
     alltime_fit = -np.inf
     viewer = _LiveViewer() if watch_every > 0 else None
+    checkpoint_dir = Path(checkpoint_replay_dir) if checkpoint_replay_dir else None
+    if checkpoint_dir is not None:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     for g in range(gens):
         fits, winrate, _, _ = evaluate(genomes, hof, seed=g + 1)
@@ -398,6 +413,15 @@ def evolve(pop=40, gens=100, mut=0.15, elite=2, seed=0,
             hof.append(genomes[0].copy())
             if len(hof) > hof_cap:
                 hof.pop(0)
+            if checkpoint_dir is not None:
+                rival = genomes[1] if len(genomes) > 1 else genomes[0]
+                np.save(checkpoint_dir / f"gen_{g:03d}_best.npy", genomes[0])
+                np.save(checkpoint_dir / f"gen_{g:03d}_rival.npy", rival)
+                replay_path = checkpoint_dir / f"gen_{g:03d}_best_vs_rival.gif"
+                plot_path = checkpoint_dir / f"gen_{g:03d}_trajectory.png"
+                replay_seed = g * 131 + 7
+                animate_match(genomes[0], rival, seed=replay_seed, save=replay_path, show=False)
+                plot_match(genomes[0], rival, seed=replay_seed, save=plot_path)
 
         if viewer is not None and (g % watch_every == 0 or g == gens - 1):
             rival = genomes[1] if len(genomes) > 1 else genomes[0]
@@ -438,6 +462,8 @@ class _LiveViewer:
 
         self.h_a, = self.ax.plot([], [], "k-", lw=1.5)
         self.h_b, = self.ax.plot([], [], "k-", lw=1.5)
+        self.rays_a = [self.ax.plot([], [], color=TEAM_COLORS[0], alpha=0.18, lw=1)[0] for _ in RAY_ANGLES]
+        self.rays_b = [self.ax.plot([], [], color=TEAM_COLORS[1], alpha=0.18, lw=1)[0] for _ in RAY_ANGLES]
         self.carry_a, = self.ax.plot([], [], marker="o", color="k", ms=4, ls="")
         self.carry_b, = self.ax.plot([], [], marker="o", color="k", ms=4, ls="")
 
@@ -449,6 +475,18 @@ class _LiveViewer:
         self.flag_b.center = (f1x, f1y)
         self.h_a.set_data([ax_, ax_ + np.cos(ah_)], [ay_, ay_ + np.sin(ah_)])
         self.h_b.set_data([bx_, bx_ + np.cos(bh_)], [by_, by_ + np.sin(bh_)])
+        for line, ray_angle in zip(self.rays_a, RAY_ANGLES):
+            direction = ah_ + ray_angle
+            line.set_data(
+                [ax_, ax_ + MAX_RANGE * np.cos(direction)],
+                [ay_, ay_ + MAX_RANGE * np.sin(direction)],
+            )
+        for line, ray_angle in zip(self.rays_b, RAY_ANGLES):
+            direction = bh_ + ray_angle
+            line.set_data(
+                [bx_, bx_ + MAX_RANGE * np.cos(direction)],
+                [by_, by_ + MAX_RANGE * np.sin(direction)],
+            )
         self.carry_a.set_data([ax_], [ay_ + 0.6]) if a_carry else self.carry_a.set_data([], [])
         self.carry_b.set_data([bx_], [by_ + 0.6]) if b_carry else self.carry_b.set_data([], [])
         return [
@@ -458,6 +496,8 @@ class _LiveViewer:
             self.flag_b,
             self.h_a,
             self.h_b,
+            *self.rays_a,
+            *self.rays_b,
             self.carry_a,
             self.carry_b,
         ]
@@ -477,7 +517,11 @@ def animate_match(gen_a, gen_b, seed=42, save=None, show=True):
     plt.ioff()
     viewer.ax.set_title(f"replay - winner={winner}")
     if save:
+        save = Path(save)
+        save.parent.mkdir(parents=True, exist_ok=True)
         frames = trail[::2]
+        if not frames:
+            raise ValueError("Cannot save replay: match trail is empty")
 
         def update(i):
             return viewer.set_frame(frames[i])
@@ -490,6 +534,40 @@ def animate_match(gen_a, gen_b, seed=42, save=None, show=True):
         plt.show()
     else:
         plt.close(viewer.fig)
+
+
+def plot_match(gen_a, gen_b, seed=42, save=None, show=False):
+    fa, fb, winner, trail = run_match(gen_a, gen_b, seed=seed, record=True)
+    if not trail:
+        raise ValueError("Cannot plot match: match trail is empty")
+    arr = np.array(trail)
+    fig, ax = plt.subplots(figsize=(7.0, 6.5))
+    ax.set_xlim(0, ARENA)
+    ax.set_ylim(0, ARENA)
+    ax.set_aspect("equal")
+    ax.axvline(ARENA / 2.0, color="0.75", ls="--", lw=1)
+    ax.add_patch(Circle(tuple(base_pos(0)), BASE_R, fill=False, ec=TEAM_COLORS[0], lw=2))
+    ax.add_patch(Circle(tuple(base_pos(1)), BASE_R, fill=False, ec=TEAM_COLORS[1], lw=2))
+    ax.plot(arr[:, 0], arr[:, 1], color=TEAM_COLORS[0], lw=2, label=f"A fitness={fa:.1f}")
+    ax.plot(arr[:, 4], arr[:, 5], color=TEAM_COLORS[1], lw=2, label=f"B fitness={fb:.1f}")
+    ax.scatter(arr[0, 0], arr[0, 1], color=TEAM_COLORS[0], marker="o", s=35)
+    ax.scatter(arr[0, 4], arr[0, 5], color=TEAM_COLORS[1], marker="o", s=35)
+    ax.scatter(arr[-1, 0], arr[-1, 1], color=TEAM_COLORS[0], marker="x", s=55)
+    ax.scatter(arr[-1, 4], arr[-1, 5], color=TEAM_COLORS[1], marker="x", s=55)
+    ax.scatter(arr[:, 8], arr[:, 9], color=FLAG_COLORS[0], s=8, alpha=0.25, label="A flag")
+    ax.scatter(arr[:, 11], arr[:, 12], color=FLAG_COLORS[1], s=8, alpha=0.25, label="B flag")
+    ax.set_title(f"match trajectory - winner={winner}")
+    ax.legend(frameon=False, loc="upper right")
+    fig.tight_layout()
+    if save:
+        save = Path(save)
+        save.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save, dpi=160)
+        print(f"Saved trajectory to {save}")
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 if __name__ == "__main__":
@@ -513,16 +591,25 @@ if __name__ == "__main__":
                     help="if --opponent is a hall-of-fame array, select this entry")
     ap.add_argument("--save-replay", type=str, default=None,
                     help="write a replay GIF, for example replay.gif")
+    ap.add_argument("--save-trajectory", type=str, default=None,
+                    help="write a static trajectory plot for --replay")
+    ap.add_argument("--checkpoint-replay-dir", type=str, default=None,
+                    help="during training, save best-vs-rival GIFs every hof_every generations")
+    ap.add_argument("--forward-only", action="store_true",
+                    help="disallow negative wheel speeds so agents cannot drive backward")
     args = ap.parse_args()
+    ALLOW_REVERSE = not args.forward_only
 
     if args.replay:
         gen_a, _ = load_seed_genome(args.replay, index=args.replay_index)
         gen_b, _ = load_seed_genome(args.opponent, index=args.opponent_index) if args.opponent else (gen_a, "self")
         animate_match(gen_a, gen_b, seed=args.seed + 999, save=args.save_replay, show=not args.no_animate)
+        if args.save_trajectory:
+            plot_match(gen_a, gen_b, seed=args.seed + 999, save=args.save_trajectory)
         raise SystemExit(0)
 
-    pop = args.pop or (16 if args.quick else 40)
-    gens = args.gens or (10 if args.quick else 100)
+    pop = args.pop if args.pop is not None else (16 if args.quick else 100)
+    gens = args.gens if args.gens is not None else (10 if args.quick else 150)
 
     print(
         f"Evolving mini-CTF: pop={pop} gens={gens} N_PARAMS={N_PARAMS}"
@@ -536,6 +623,7 @@ if __name__ == "__main__":
         resume=args.resume,
         seed_from=args.seed_from,
         watch_every=args.watch_every,
+        checkpoint_replay_dir=args.checkpoint_replay_dir,
     )
     np.save(args.out, best)
     alltime_out = args.out.replace(".npy", "_alltime.npy")
@@ -564,3 +652,5 @@ if __name__ == "__main__":
             save=args.save_replay,
             show=not args.no_animate,
         )
+    if args.save_trajectory:
+        plot_match(best, hof[-1] if hof else best, seed=args.seed + 999, save=args.save_trajectory)

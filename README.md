@@ -54,8 +54,14 @@ python mini_ctf.py --seed-from best_genome.npy
 python mini_ctf.py --replay best_mini_ctf.npy
 python mini_ctf.py --replay best_mini_ctf_alltime.npy
 python mini_ctf.py --replay best_mini_ctf.npy --save-replay replay.gif --no-animate
+python mini_ctf.py --replay best_mini_ctf.npy --save-trajectory trajectory.png --no-animate
 python mini_ctf.py --replay best_mini_ctf_hof.npy --replay-index -1 --opponent best_mini_ctf_hof.npy --opponent-index 0
+python mini_ctf.py --checkpoint-replay-dir checkpoint_replays --no-animate
+python mini_ctf.py --forward-only --checkpoint-replay-dir checkpoint_replays_forward --no-animate
 ```
+
+`--checkpoint-replay-dir` saves the best genome and a rival genome every `hof_every` generations, plus a GIF and trajectory plot for each checkpoint. This is useful for watching behavior change over evolution.
+`--forward-only` prevents negative wheel speeds. Without it, differential drive can evolve backward-driving agents whose sensor rays face the opposite direction from movement.
 
 Intermediate race baseline:
 
@@ -91,6 +97,7 @@ The Google Colab notebook is `notebooks/google_colab_final_project.ipynb`, or op
 
 - `mini_ctf.py` can warm-start from a stage-1 genome by widening the old sensor weights into the new 4-channel sensor layout.
 - The current mini-CTF scoring rule awards a point when an agent returns the enemy flag to its home base. It does not yet require the home flag to be present.
+- `mini_ctf.py` is co-evolutionary self-play from one population. It is not a mirrored single-genome setup: Agent A and Agent B can be different genomes.
 - This repo is still in the toy-simulation phase. The later goal is to bridge these controllers into Google's Melting Pot CTF substrate.
 
 ## Suggested Next Steps
