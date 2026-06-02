@@ -17,23 +17,23 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Circle, Wedge
 
 # ---------------- World ----------------
-ARENA        = 20.0
-DT           = 0.1
-EP_STEPS     = 300
+ARENA        = 40.0 #20 is arbitrary, just means units
+DT           = 0.1 #each simulation step advances time by 0.1 time units, and a unit is 1 second, so each step is a tenth of a second and the model updates the sensors, ctrnn brain, and movement once per dt. 
+EP_STEPS     = 300 #one episode lasts at mose 300 simulation steps, so about 30 seconds total. 
 AGENT_R      = 0.4
 FLAG_R       = 0.4
 PLAYER_R     = 0.4
 CAPTURE_DIST = 1.0
-WHEEL_BASE   = 1.0
+WHEEL_BASE   = 1.0 #distance between the left and right wheels in differential drive model. important for turning. Angular turning speed is written as w = (vr - vl) / WHEEL_BASE
 MAX_SPEED    = 3.0
 
 # ---------------- Sensors ----------------
-N_RAYS       = 4
-N_CHANNELS   = 2   # 0 = flag, 1 = player
-N_SENSORS    = N_RAYS * N_CHANNELS
-RAY_ANGLES   = np.deg2rad([-60.0, -20.0, 20.0, 60.0])
-RAY_HALF_FOV = np.deg2rad(20.0)
-MAX_RANGE    = 12.0
+N_RAYS       = 4 #number of vision rays
+N_CHANNELS   = 2   # 0 = flag, 1 = player # so each ray can separately detect 2 things, the flag and player. 
+N_SENSORS    = N_RAYS * N_CHANNELS #brain receives 8 sensory inputs total
+RAY_ANGLES   = np.deg2rad([-60.0, -20.0, 20.0, 60.0]) # rays are pointed at angles relative to where the agent is facing, so 
+RAY_HALF_FOV = np.deg2rad(20.0) #deg2rad is a degrees to radians function. Each ray is a cone, meaning it can detect objects within 20 degrees to either side of the ray direction 
+MAX_RANGE    = 12.0 #12/20 eyesight twin 
 
 # ---------------- CTRNN ----------------
 N_NEURONS    = 3            # classic minimal ER: 3 fully-connected neurons
@@ -41,26 +41,30 @@ N_NEURONS    = 3            # classic minimal ER: 3 fully-connected neurons
 # neurons 1, 2 = motors (left / right wheel) — also fully recurrently connected
 # All three receive weighted sensor input (let the GA pick effective roles).
 
-BASE_PARAMS = (N_NEURONS * N_NEURONS  # recurrent weights
+BASE_PARAMS = (N_NEURONS * N_NEURONS  # recurrent weights 
                + N_NEURONS            # biases
                + N_NEURONS)           # taus (raw, sigmoid-mapped)
+#this ends up being 15 
 
 def param_count(n_sensors):
-    return BASE_PARAMS + n_sensors * N_NEURONS
+    return BASE_PARAMS + n_sensors * N_NEURONS # 8 * 3 = 24 then 24+15 = 39. 
+'''a way to think about this is like this: a genome is 9 recurrent weigths, 3 biases, 3 tau values and 24 sensor weights.
+'''
 
-N_PARAMS = param_count(N_SENSORS)
+N_PARAMS = param_count(N_SENSORS) # this is setting up how long the genome ector must be 
 
 def sigmoid(x):
-    return 1.0 / (1.0 + np.exp(-np.clip(x, -30, 30)))
+    return 1.0 / (1.0 + np.exp(-np.clip(x, -30, 30))) #a squashing function is what  a sigmoid does. Basically it turns any number into something between 0 and 1 because neurons need an activation rule
 
 def unpack_genome(genome, n_sensors):
-    i = 0
-    W  = genome[i:i+N_NEURONS**2].reshape(N_NEURONS, N_NEURONS); i += N_NEURONS**2
-    b  = genome[i:i+N_NEURONS];                                  i += N_NEURONS
-    tr = genome[i:i+N_NEURONS];                                  i += N_NEURONS
-    Ws = genome[i:i+n_sensors*N_NEURONS].reshape(n_sensors, N_NEURONS)
-    taus = 0.5 + 4.5 * sigmoid(tr)   # tau in [0.5, 5.0]
+    i = 0 #starting index
+    W  = genome[i:i+N_NEURONS**2].reshape(N_NEURONS, N_NEURONS); i += N_NEURONS**2 #this gives us our 9 numbers for recurrent weights. N_Neurons**2 = 9. so w = [0:9].reshape(3, 3) .reshape changes it into the matrix
+    b  = genome[i:i+N_NEURONS];                                  i += N_NEURONS #i now = 9 so its [9:12] which now equals our bias
+    tr = genome[i:i+N_NEURONS];                                  i += N_NEURONS #now we take 3 numbrs for raw taus so [12:15] i = 15 now 
+    Ws = genome[i:i+n_sensors*N_NEURONS].reshape(n_sensors, N_NEURONS) #Ws = genome[15:39].reshape(8,3) so sensor weights become an 8 by 3 matrix 
+    taus = 0.5 + 4.5 * sigmoid(tr)   # tau in [0.5, 5.0] #tau controls how quickly neurons change. So 
     return W, b, taus, Ws
+'''tldr, a genome is a flat list. Unpack_genome organizes that list into pieces the CTRNN needs'''
 
 def unpack(genome):
     return unpack_genome(genome, N_SENSORS)
