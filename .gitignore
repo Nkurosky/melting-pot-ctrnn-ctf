@@ -18,6 +18,18 @@ ENV/
 !docs/figures/
 !docs/figures/*.png
 
+# C++ builds and experiment output
+*.exe
+*.log
+v4_*_fitness.svg
+v4_*_outcomes.csv
+v4_*_replay.csv
+v5_*_history.csv
+v5_*_ratings.csv
+v5_*_hof.csv
+v5_*_replay.csv
+v5_*_stage.txt
+
 # Local editor / tooling
 .DS_Store
 Thumbs.db
